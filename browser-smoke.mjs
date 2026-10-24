@@ -56,7 +56,7 @@ try{
  page.once('dialog',d=>d.accept());await page.click('#delete-team-0');await page.getByRole('status').filter({hasText:'Team deleted.'}).waitFor();
  assert.equal(await page.locator('#saved-0 option[value="ashford"]').count(),0,'Team removed');
  await page.reload();await page.locator('[data-view="history"]').click();await page.selectOption('#history-team','ashford');assert.ok((await page.locator('.record-summary').textContent()).includes('Archived team'));await page.locator('[data-load]').first().click();assert.deepEqual((await page.evaluate(()=>FridayNight.getGame())).events,game.events,'Deletion preserves historical events');
- await page.locator('header [data-view="setup"]').click();assert.equal(await page.locator('#saved-0 option[value="ashford"]').count(),0,'Deleted team stays deleted after reload');
+ await page.locator('header [data-view="setup"]').click();assert.equal(await page.locator('#saved-0 option[value="ashford"]').count(),0,'Deleted team stays deleted after reload');assert.notEqual(await page.inputValue('#name-0'),'Ashford','Deleted demo does not return as the default matchup');
  await page.screenshot({path:'browser-results/team-controls-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'New controls fit mobile');
  assert.deepEqual(errors,[],'No browser JS errors');
