@@ -15,11 +15,11 @@ Then open http://localhost:8080. Python 3 is required for this convenience comma
 On iPhone/iPad, use a hosted HTTPS version in Safari; the Files app's HTML preview is not a reliable application runtime.
 
 1. Open **Matchup studio**. Enter names, mascots, manual ratings, colors and logos.
-2. Save teams for later reuse. Blank offense/defense values inherit overall.
+2. Save teams for later reuse. Blank offense/defense values inherit overall. Uploaded logos automatically suggest team colors; use Get colors from logo to repeat extraction, or adjust colors manually. Clear fields starts a new independent team. Delete team removes a saved team after confirmation while retaining historical games as archived records.
 3. Choose weather, strategies, home advantage, and overtime settings.
 4. Click **Simulate game**. Default speed is 10×. Pause/resume, change speeds, or skip to final.
 5. Open the full play log or statistics. Generate a score graphic and download PNG.
-6. Saved games reopen with the original events. Rematches use a fresh seed.
+6. In Saved games, select a team to view its win–loss record and only its past scores. Results are paginated in groups of ten. Saved games reopen with the original events. Rematches use a fresh seed.
 
 ## GitHub Pages
 

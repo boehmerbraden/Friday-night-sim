@@ -32,3 +32,18 @@ export async function renderGraphic(game,{width=1080,height=1080,theme='classic'
  text('YOUR RIVALRIES. YOUR MOMENT.',w*.5,h*.955,18,theme==='minimal'?'#657277':'#8b9ca8',600);
  return {canvas:c,url:c.toDataURL('image/png')};
 }
+
+// Quantized colors are averaged from visible logo pixels, not guessed from team names.
+export function paletteFromPixels(pixels){
+ const bins=new Map();let total=0;
+ for(let i=0;i<pixels.length;i+=4){if(pixels[i+3]<180)continue;const rgb=[pixels[i],pixels[i+1],pixels[i+2]],key=rgb.map(v=>Math.floor(v/24)).join(',');const b=bins.get(key)||{n:0,sum:[0,0,0]};b.n++;rgb.forEach((v,j)=>b.sum[j]+=v);bins.set(key,b);total++;}
+ if(!total)return null;
+ const colors=[...bins.values()].map(b=>({n:b.n,rgb:b.sum.map(v=>Math.round(v/b.n))})).sort((a,b)=>b.n-a.n);
+ const chromatic=colors.filter(c=>Math.max(...c.rgb)-Math.min(...c.rgb)>45&&c.n/total>=.025);
+ const primary=chromatic[0]||colors[0];const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
+ const second=colors.find(c=>c.n/total>=.015&&distance(c.rgb,primary.rgb)>75);
+ const hex=rgb=>'#'+rgb.map(v=>v.toString(16).padStart(2,'0')).join('');
+ const luminance=primary.rgb[0]*.299+primary.rgb[1]*.587+primary.rgb[2]*.114;
+ return {primary:hex(primary.rgb),secondary:second?hex(second.rgb):luminance>145?'#111111':'#ffffff'};
+}
+export async function extractLogoColors(src){const im=await loadImage(src),c=document.createElement('canvas');const scale=96/Math.max(im.width,im.height);c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(im,0,0,c.width,c.height);return paletteFromPixels(ctx.getImageData(0,0,c.width,c.height).data);}
