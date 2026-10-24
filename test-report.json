@@ -1,0 +1,133 @@
+{
+  "games": 4400,
+  "assertions": 9922561,
+  "groups": [
+    {
+      "ratings": [
+        75,
+        75
+      ],
+      "neutral": true,
+      "games": 1000,
+      "homeWinRate": 0.512,
+      "averageScore": [
+        14.73,
+        14.97
+      ],
+      "averageYards": [
+        301.04,
+        301.92
+      ],
+      "shutouts": 144
+    },
+    {
+      "ratings": [
+        60,
+        95
+      ],
+      "neutral": false,
+      "games": 1000,
+      "homeWinRate": 0.943,
+      "averageScore": [
+        6.54,
+        30.43
+      ],
+      "averageYards": [
+        214.69,
+        428.74
+      ],
+      "shutouts": 289
+    },
+    {
+      "ratings": [
+        95,
+        60
+      ],
+      "neutral": false,
+      "games": 1000,
+      "homeWinRate": 0.072,
+      "averageScore": [
+        28.74,
+        7.13
+      ],
+      "averageYards": [
+        412.81,
+        220.2
+      ],
+      "shutouts": 270
+    },
+    {
+      "ratings": [
+        70,
+        85
+      ],
+      "neutral": false,
+      "games": 1000,
+      "homeWinRate": 0.752,
+      "averageScore": [
+        10.55,
+        21.34
+      ],
+      "averageYards": [
+        256.49,
+        359.95
+      ],
+      "shutouts": 186
+    },
+    {
+      "ratings": [
+        1,
+        99
+      ],
+      "neutral": false,
+      "games": 200,
+      "homeWinRate": 1,
+      "averageScore": [
+        1.74,
+        68.64
+      ],
+      "averageYards": [
+        106.89,
+        678.43
+      ],
+      "shutouts": 143
+    },
+    {
+      "ratings": [
+        99,
+        1
+      ],
+      "neutral": false,
+      "games": 200,
+      "homeWinRate": 0,
+      "averageScore": [
+        65.96,
+        2.2
+      ],
+      "averageYards": [
+        656.56,
+        117.77
+      ],
+      "shutouts": 130
+    }
+  ],
+  "events": {
+    "kickoff": 36197,
+    "pass": 261252,
+    "rush": 314251,
+    "clock": 296107,
+    "extraPoint": 20335,
+    "fumble": 7868,
+    "sack": 21259,
+    "punt": 61551,
+    "penalty": 47889,
+    "interception": 10054,
+    "period": 13332,
+    "fieldGoal": 12400,
+    "timeout": 14175,
+    "twoPoint": 218,
+    "kneel": 2692
+  },
+  "overtimeGames": 132,
+  "maximumScore": 117
+}

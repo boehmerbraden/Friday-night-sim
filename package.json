@@ -1,0 +1,11 @@
+{
+  "name": "friday-night",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests.mjs && node graphics-tests.mjs",
+    "build": "node build.mjs",
+    "start": "python3 -m http.server 8080"
+  }
+}
