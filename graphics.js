@@ -1,6 +1,6 @@
 export function loadImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Could not decode this logo.'));im.src=src;});}
 export async function rasterLogo(file){if(file.size>8*1024*1024)throw new Error('Please use a logo smaller than 8 MB.');if(!/image\/(png|jpeg|svg\+xml)/.test(file.type))throw new Error('Choose a PNG, JPG, or SVG logo.');const url=URL.createObjectURL(file);try{const im=await loadImage(url);const c=document.createElement('canvas');const scale=Math.min(1,800/Math.max(im.naturalWidth,im.naturalHeight));c.width=Math.max(1,Math.round(im.naturalWidth*scale));c.height=Math.max(1,Math.round(im.naturalHeight*scale));c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/png');}finally{URL.revokeObjectURL(url);}}
-export async function renderGraphic(game,{width=1080,height=1080,theme='classic'}={}){
+export async function renderGraphic(game,{width=1080,height=1080,theme='classic',championship=null}={}){
  const c=document.createElement('canvas');c.width=width;c.height=height;const x=c.getContext('2d'),w=width,h=height,s=Math.min(w,h)/1080;
  await document.fonts.ready;const images=await Promise.all(game.teams.map(t=>t.logo?loadImage(t.logo):null));
  const grad=x.createLinearGradient(0,0,w,h);grad.addColorStop(0,theme==='minimal'?'#e8eae4':'#09131d');grad.addColorStop(1,theme==='minimal'?'#ffffff':'#04080e');x.fillStyle=grad;x.fillRect(0,0,w,h);
@@ -15,8 +15,8 @@ export async function renderGraphic(game,{width=1080,height=1080,theme='classic'
  const ink=theme==='minimal'?'#10202c':'#f4f5ef',accent=theme==='championship'?'#e8cb77':theme==='minimal'?'#40503c':'#c7f563';
  const text=(str,px,py,size,color=ink,weight=800,max=w*.9)=>{x.fillStyle=color;x.textAlign='center';x.textBaseline='middle';x.font=`${weight} ${size*s}px "Barlow Condensed", Impact, sans-serif`;x.fillText(String(str),px,py,max);};
  text('FRIDAY NIGHT  /  HIGH SCHOOL FOOTBALL',w/2,h*.065,20,theme==='minimal'?'#6e7a7b':'#b4c3cb',600);
- text('FINAL',w/2,h*.177,118,accent,900);
- text(game.ot?`${game.ot} OVERTIME${game.ot>1?'S':''}`:'UNDER THE LIGHTS',w/2,h*.259,19,theme==='minimal'?'#697373':'#c9d1d5',600);
+ text(championship?'CHAMPIONS':'FINAL',w/2,h*.177,championship?88:118,accent,900);
+ text(championship|| (game.ot?`${game.ot} OVERTIME${game.ot>1?'S':''}`:'UNDER THE LIGHTS'),w/2,h*.259,19,theme==='minimal'?'#697373':'#c9d1d5',600);
  const winner=game.score[0]>game.score[1]?0:1;
  for(let i=0;i<2;i++){
   const cx=w*(i?.74:.26),t=game.teams[i],logoSize=Math.min(w*.19,h*.18),ly=h*.385;
@@ -26,7 +26,7 @@ export async function renderGraphic(game,{width=1080,height=1080,theme='classic'
   text(t.mascot.toUpperCase(),cx,h*.558,22,theme==='minimal'?'#657277':'#a6b8c3',600,w*.42);
   text(game.score[i],cx,h*.70,w/h>1.5?205:225,ink,900);
   x.fillStyle=t.primary;x.fillRect(cx-w*.16,h*.83,w*.32,5*s);x.fillStyle=t.secondary;x.fillRect(cx-w*.16,h*.83+6*s,w*.32,2*s);
-  if(i===winner){text('WINNER',cx,h*.88,21,accent,700);}else{text(i===0?'AWAY':'HOME',cx,h*.88,18,theme==='minimal'?'#657277':'#a6b8c3',600);}
+  if(i===winner){text(championship?'LEAGUE CHAMPION':'WINNER',cx,h*.88,21,accent,700);}else{text(i===0?'AWAY':'HOME',cx,h*.88,18,theme==='minimal'?'#657277':'#a6b8c3',600);}
  }
  x.strokeStyle=theme==='minimal'?'#10202c22':'#ffffff22';x.lineWidth=2*s;x.beginPath();x.moveTo(w*.5,h*.33);x.lineTo(w*.5,h*.84);x.stroke();
  text('YOUR RIVALRIES. YOUR MOMENT.',w*.5,h*.955,18,theme==='minimal'?'#657277':'#8b9ca8',600);

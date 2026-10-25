@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {normalizeTeam} from './engine.js';
+import {seasonDefaults,generateSchedule,validateSchedule,createSeason,seasonStandings,startPlayoffs,simulateSeasonGame,recordSeasonResult,seasonCareer,qualifySeason} from './season.js';
+const teams=n=>Array.from({length:n},(_,i)=>({...normalizeTeam({id:'t'+i,name:'School '+i,overall:55+i%40}),division:'Region '+i%4,tier:(i%6+1)+'A'}));
+const report=[];
+for(const n of [8,16,24,32,64,101,128,202]){
+ const ts=teams(n),cfg=seasonDefaults(n),gen=generateSchedule(ts,cfg,713);cfg.weeks=Math.max(cfg.weeks,gen.requiredWeeks);const start=performance.now(),s=createSeason(ts,cfg,713,'size-'+n);
+ assert.deepEqual(validateSchedule(ts,cfg,s.games),[]);const balance=new Map(ts.map(t=>[t.id,0]));for(const g of s.games){balance.set(g.home,balance.get(g.home)+1);balance.set(g.away,balance.get(g.away)-1);}assert.ok([...balance.values()].every(v=>Math.abs(v)<=1));
+ for(const f of s.games){const full=simulateSeasonGame(s,f);assert.ok(full.events.length>0);assert.equal(recordSeasonResult(s,f.id,full),true);assert.equal(recordSeasonResult(s,f.id,full),false);}
+ const stand=seasonStandings(s);assert.equal(stand.reduce((a,r)=>a+r.w,0),s.games.length);assert.equal(stand.reduce((a,r)=>a+r.pf,0),stand.reduce((a,r)=>a+r.pa,0));assert.ok(stand.every(r=>r.w+r.l===cfg.games));
+ startPlayoffs(s);while(s.status!=='complete'){const pending=s.games.filter(g=>g.status==='scheduled');assert.ok(pending.length);for(const f of pending){const full=simulateSeasonGame(s,f);recordSeasonResult(s,f.id,full);}}
+ assert.ok(s.champion);assert.equal(s.games.filter(g=>g.phase==='playoff'&&g.status==='final').length,cfg.playoffTeams-1);assert.equal(new Set(s.seeds).size,cfg.playoffTeams);for(const ids of s.rounds){const played=ids.flatMap(id=>{const g=s.games.find(x=>x.id===id);return [g.away,g.home].filter(Boolean);});assert.equal(new Set(played).size,played.length);}
+ const careers=seasonCareer([s,s]);assert.equal(careers.reduce((a,c)=>a+c.titles,0),1);assert.equal(careers.reduce((a,c)=>a+c.w,0),s.games.filter(g=>g.status==='final').length);assert.equal(careers.reduce((a,c)=>a+c.appearances,0),cfg.playoffTeams);assert.equal(careers.reduce((a,c)=>a+c.finals,0),2);assert.equal(careers.reduce((a,c)=>a+c.runnerUp,0),1);
+ report.push({teams:n,games:s.games.filter(g=>g.status==='final').length,weeks:cfg.weeks,playoffs:cfg.playoffTeams,ms:Math.round(performance.now()-start)});
+}
+// Non-power-of-two fields, zero duplicate positions, valid byes and a single final.
+for(const p of [3,5,6,7,12,24,31,63]){const n=Math.max(8,p),ts=teams(n),cfg={...seasonDefaults(n),games:n%2?2:1,weeks:8,playoffTeams:p},s=createSeason(ts,cfg,21,'bracket-'+p);for(const f of s.games)recordSeasonResult(s,f.id,simulateSeasonGame(s,f));startPlayoffs(s);const first=s.rounds[0].map(id=>s.games.find(g=>g.id===id));assert.equal(first.filter(g=>g.status==='bye').length,2**Math.ceil(Math.log2(p))-p);while(s.status!=='complete')for(const f of s.games.filter(g=>g.status==='scheduled'))recordSeasonResult(s,f.id,simulateSeasonGame(s,f));assert.equal(s.games.filter(g=>g.phase==='playoff'&&g.status==='final').length,p-1);}
+// Exact repeatable games with same input, irrespective of completion order.
+const a=createSeason(teams(8),{...seasonDefaults(8),games:3,weeks:3},99,'replay'),b=structuredClone(a);for(const f of a.games)recordSeasonResult(a,f.id,simulateSeasonGame(a,f));for(const f of b.games.slice().reverse())recordSeasonResult(b,f.id,simulateSeasonGame(b,f));assert.deepEqual(a,b);startPlayoffs(a);startPlayoffs(b);while(a.status!=='complete'){for(const f of a.games.filter(g=>g.status==='scheduled'))recordSeasonResult(a,f.id,simulateSeasonGame(a,f));for(const f of b.games.filter(g=>g.status==='scheduled').reverse())recordSeasonResult(b,f.id,simulateSeasonGame(b,f));}assert.deepEqual(a,b);
+const replay=createSeason(a.teams,a.settings,100,'new-season');assert.equal(seasonStandings(replay).reduce((a,r)=>a+r.w,0),0);assert.deepEqual(seasonCareer([a,replay]),seasonCareer([a]));assert.deepEqual(replay.teams.map(t=>t.overall),a.teams.map(t=>t.overall));
+const bad=structuredClone(replay);bad.games[1].away=bad.games[0].away;assert.ok(validateSchedule(bad.teams,bad.settings,bad.games).length);assert.throws(()=>generateSchedule(teams(9),{games:3,weeks:4},1),/even/);assert.throws(()=>startPlayoffs(replay),/Finish/);
+for(const qualification of ['division','tier']){const s=structuredClone(a);s.settings.qualification=qualification;s.settings.playoffTeams=8;const seeds=qualifySeason(s);assert.equal(seeds.length,8);}
+console.log('Season invariants, reproducibility, byes, and exactly-once careers passed.');console.table(report);
