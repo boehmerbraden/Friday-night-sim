@@ -25,6 +25,7 @@ jobs:
       - run: node browser-smoke.mjs
       - run: node season-browser.mjs
       - run: node state-browser.mjs
+      - run: node logo-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

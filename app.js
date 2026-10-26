@@ -1,3 +1,4 @@
+import {prepareLogo} from './logo-background.js';
 import {US_STATES,validState,teamState,stateName,leagueState} from './states.js';
 import {simulate,deriveStats,normalizeTeam,clock,winProbability,summarize} from './engine.js';
 import {rasterLogo,renderGraphic,extractLogoColors} from './graphics.js';
@@ -57,7 +58,7 @@ function forms(){
   $('strategy-'+i).value=t.strategy||'balanced';$('defStrategy-'+i).value=t.defStrategy||'balanced';
   $('saved-'+i).value=savedTeams.some(s=>s.id===t.id)?t.id:'';
   $('saved-'+i).onchange=()=>{const id=$('saved-'+i).value;readForms(false);const selected=savedTeams.find(s=>s.id===id);if(selected)matchup[i]=structuredClone(selected);forms();};
-  $('logo-'+i).onchange=async e=>{const file=e.target.files[0];if(!file)return;readForms(false);const draft=matchup[i];try{const src=await rasterLogo(file);const colors=await extractLogoColors(src);if(matchup[i].id!==draft.id)return;readForms(false);matchup[i].logo=src;if(colors)Object.assign(matchup[i],colors);forms();toast(colors?'Logo ready. Team colors extracted.':'Logo ready. No visible colors found; choose colors below.');}catch(err){toast(err.message);}};
+  $('logo-'+i).onchange=async e=>{const file=e.target.files[0];if(!file)return;readForms(false);const draft=matchup[i];try{const src=await prepareLogo(file);const colors=await extractLogoColors(src);if(matchup[i].id!==draft.id)return;readForms(false);matchup[i].logo=src;if(colors)Object.assign(matchup[i],colors);forms();toast(colors?'Logo ready. Team colors extracted.':'Logo ready. No visible colors found; choose colors below.');}catch(err){toast(err.message);}};
   $('extract-colors-'+i).onclick=async()=>{readForms(false);const draft=matchup[i],src=draft.logo;try{const colors=await extractLogoColors(src);if(matchup[i].id!==draft.id||matchup[i].logo!==src)return;if(!colors)return toast('No visible logo colors found.');readForms(false);Object.assign(matchup[i],colors);forms();toast('Team colors extracted.');}catch(err){toast(err.message);}};
   $('remove-logo-'+i).onclick=()=>{readForms(false);delete matchup[i].logo;forms();};
   $('clear-team-'+i).onclick=()=>{readForms(false);matchup[i]=blankTeam();forms();toast('Fields cleared. Ready for a new team.');};
