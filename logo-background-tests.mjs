@@ -6,3 +6,5 @@ assert.deepEqual(detectLogoBackground(pixels,w,h),[255,255,255]);const cut=remov
 const transparent=new Uint8ClampedArray(pixels);for(let x=0;x<w;x++)transparent[x*4+3]=0;assert.deepEqual(detectLogoBackground(transparent,w,h),[255,255,255],'White background with transparent edge is detected');assert.equal(detectLogoBackground(cut.pixels,w,h),null,'White enclosed logo detail is not a background');
 const colored=new Uint8ClampedArray(pixels);for(let p=0;p<w*h;p++)if(pixels[p*4]===255)colored.set([20,160,90,255],p*4);assert.deepEqual(detectLogoBackground(colored,w,h),[20,160,90]);assert.equal(removeLogoBackground(colored,w,h,[20,160,90]).removed,56);
 console.log('PASS: solid backgrounds, transparency detection, flood fill, interior details, original preservation');
+
+const tapped=removeLogoBackground(cut.pixels,w,h,[255,255,255],45,4*w+4);assert.equal(tapped.removed,1);assert.equal(tapped.pixels[(4*w+4)*4+3],0);

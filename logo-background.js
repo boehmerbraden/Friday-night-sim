@@ -5,7 +5,7 @@ export function detectLogoBackground(data,width,height){
  let white=0;for(let i=0;i<data.length;i+=4)if(data[i+3]>0&&Math.min(data[i],data[i+1],data[i+2])>=225)white++;
  if(white/area>=.03&&removeLogoBackground(data,width,height,[255,255,255],45).removed/area>=.02)return [255,255,255];
  const border=[];for(let x=0;x<width;x++){border.push(x);if(height>1)border.push((height-1)*width+x);}for(let y=1;y<height-1;y++){border.push(y*width);if(width>1)border.push(y*width+width-1);}
- const visible=border.filter(p=>data[p*4+3]>=200);if(visible.length<border.length*.5)return null;
+ const visible=border.filter(p=>data[p*4+3]>=200);if(visible.length<border.length*.95)return null;
  const bins=new Map();for(const p of visible){const i=p*4,key=[data[i],data[i+1],data[i+2]].map(v=>Math.floor(v/24)).join(',');const b=bins.get(key)||{count:0,sum:[0,0,0]};b.count++;for(let k=0;k<3;k++)b.sum[k]+=data[i+k];bins.set(key,b);}
  const best=[...bins.values()].sort((a,b)=>b.count-a.count)[0],rgb=best.sum.map(v=>Math.round(v/best.count));const near=visible.filter(p=>Math.hypot(...rgb.map((v,k)=>v-data[p*4+k]))<=45);
  return near.length/visible.length>=.45&&removeLogoBackground(data,width,height,rgb,45).removed/area>=.02?rgb:null;
