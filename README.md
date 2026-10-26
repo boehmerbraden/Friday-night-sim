@@ -108,3 +108,11 @@ Only active live games and the opened Gamecast keep full histories in memory. In
 Browser benchmark (GitHub Actions Chromium, October 2026): a 101-team, 520-game season including persistence finished in approximately 3.5 seconds, with a 34 ms maximum observed 20 ms heartbeat gap. This is a reference measurement, not a phone-speed guarantee.
 
 **Reset Season Stats** (Season Mode header or Team History) asks for confirmation, then resets career records and leaderboards. Existing seasons, including any already in progress, are excluded from future career totals; their original scores and standings remain accessible in the archive. Saved teams, logos, templates, and exhibition games are preserved. Start a new season to begin accumulating fresh records. The reset survives reloads.
+
+## State sections
+
+The state selector above the main screens controls saved-team pickers, random matchups, new schools, Season Mode setup, templates, archives, and record books. Alabama is the initial selection; the last selected state is remembered on this browser. Team strength still comes entirely from ratings.
+
+On first opening this update, saved schools without a valid state are assigned to Alabama in one IndexedDB transaction. Their IDs, logos, colors, ratings, and results are preserved. Existing season/template snapshots without state metadata are displayed under Alabama without rewriting their results. Already assigned teams are left alone on later visits.
+
+To move a school, load it in Matchup studio, choose a destination under **Move this saved team to another state**, and click **Move team**. This changes the saved school's state without copying or deleting it. Existing season rosters stay as their original snapshots. Season career totals, archives, and stat resets are scoped to the selected state's seasons. Switching states keeps saved progress and resets the unsaved setup; switching is blocked while a league batch is running.
