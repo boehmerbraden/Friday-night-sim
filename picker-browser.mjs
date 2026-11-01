@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
-import {chromium} from 'playwright';
+import {chromium,webkit} from 'playwright';
+import {createSeason} from './season.js';
 import {normalizeTeam} from './engine.js';
 const logo='data:image/svg+xml;base64,'+Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><path fill="#e8ef71" d="M40 3 75 22 65 62 40 77 15 62 5 22Z"/><text x="40" y="53" text-anchor="middle" font-size="38" font-weight="bold">A</text></svg>').toString('base64');
 const teams=Array.from({length:104},(_,i)=>normalizeTeam({id:'pick-'+i,state:i<103?'AL':'GA',name:i<103?'Alabama School '+String(i).padStart(3,'0'):'Georgia School',mascot:'Eagles',overall:70+i%25,logo}));
+teams[101].createdAt='2026-01-01T00:00:00Z';teams[102].createdAt='2026-02-01T00:00:00Z';
+const prior=createSeason(teams.slice(0,4),{games:3,weeks:3,playoffTeams:4},42,'picker-prior');const fixture=prior.games[0];Object.assign(fixture,{status:'final',score:[21,7],winner:fixture.away});
 const server=spawn('python3',['-m','http.server','18765'],{stdio:'ignore'});let browser,page;
 try{for(let i=0;i<50;i++){try{if((await fetch('http://127.0.0.1:18765')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
- await mkdir('browser-results',{recursive:true});browser=await chromium.launch();page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(teams=>{const r=indexedDB.open('friday-night-v1');r.onupgradeneeded=()=>{const d=r.result,s=d.createObjectStore('teams',{keyPath:'id'});teams.forEach(t=>s.put(t));d.createObjectStore('games',{keyPath:'id'});d.createObjectStore('graphics',{keyPath:'id'});};r.onsuccess=()=>r.result.close();},teams);
+ await mkdir('browser-results',{recursive:true});browser=await (process.env.PICKER_BROWSER==='webkit'?webkit:chromium).launch();page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(({teams,prior})=>{const r=indexedDB.open('friday-night-v1');r.onupgradeneeded=()=>{const d=r.result,s=d.createObjectStore('teams',{keyPath:'id'});teams.forEach(t=>s.put(t));d.createObjectStore('games',{keyPath:'id'});d.createObjectStore('graphics',{keyPath:'id'});};r.onsuccess=()=>r.result.close();const q=indexedDB.open('friday-night-seasons',1);q.onupgradeneeded=()=>{const d=q.result;d.createObjectStore('seasons',{keyPath:'id'}).put(prior);d.createObjectStore('results',{keyPath:'id'});d.createObjectStore('templates',{keyPath:'id'});d.createObjectStore('prefs',{keyPath:'id'});};q.onsuccess=()=>q.result.close();},{teams,prior});
  await page.goto('http://127.0.0.1:18765');await page.waitForFunction(()=>window.FridayNightSeason);await page.locator('header [data-view="season"]').click();
  const action=a=>page.locator(`[data-season-action="${a}"]`).first().click();const open=()=>action('select-teams');const card=i=>page.locator(`[data-picker-id="pick-${i}"]`);
- await open();assert.equal(await page.locator('.picker-card').count(),103);assert.equal(await page.locator('.picker-card .logo').count(),103);assert.equal(await page.locator('[data-picker-id="pick-103"]').count(),0);
+ await action('new');await open();assert.equal(await page.locator('.picker-card').count(),103);assert.equal(await page.locator('.picker-card .logo').count(),103);assert.equal(await page.locator('[data-picker-id="pick-103"]').count(),0);
+ assert.ok((await page.locator(`[data-picker-id="${fixture.away}"]`).innerText()).includes('Season 1–0'));assert.ok((await card(102).innerText()).includes('Not played yet'));assert.ok((await card(0).boundingBox()).height<110);await page.selectOption('#picker-sort','recent');assert.equal(await page.locator('.picker-card').first().getAttribute('data-picker-id'),'pick-102');await page.selectOption('#picker-sort','alpha');assert.equal(await page.locator('.picker-card').first().getAttribute('data-picker-id'),'pick-0');
  await card(0).click();await card(1).click();assert.equal(await card(0).locator('input').isChecked(),true);assert.ok((await card(0).getAttribute('class')).includes('is-selected'));assert.equal(await card(0).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(22, 75, 51)');
  await page.fill('#picker-search','School 010');assert.equal(await page.locator('.picker-card:visible').count(),1);await page.click('#picker-all');await page.fill('#picker-search','');assert.equal(await page.locator('#picker-count').innerText(),'3 teams selected');await page.check('#picker-selected');assert.equal(await page.locator('.picker-card:visible').count(),3);await page.uncheck('#picker-selected');
  await page.screenshot({path:'browser-results/team-picker-mobile.png'});assert.equal(await page.evaluate(()=>document.querySelector('#season-team-picker').scrollWidth>innerWidth),false);

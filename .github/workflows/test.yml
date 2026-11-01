@@ -22,13 +22,14 @@ jobs:
           node-version: '22'
       - run: npm install --no-save --no-package-lock playwright@1.56.1
       - run: npx playwright install --with-deps chromium webkit
+      - run: node picker-browser.mjs
+      - run: PICKER_BROWSER=webkit node picker-browser.mjs
       - run: node history-browser.mjs
       - run: HISTORY_BROWSER=webkit node history-browser.mjs
       - run: node browser-smoke.mjs
       - run: node season-browser.mjs
       - run: node state-browser.mjs
       - run: node logo-browser.mjs
-      - run: node picker-browser.mjs
       - run: node season-recovery-browser.mjs
       - run: RECOVERY_BROWSER=webkit node season-recovery-browser.mjs
       - run: node simple-browser.mjs
