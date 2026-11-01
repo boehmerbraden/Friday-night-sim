@@ -8,7 +8,7 @@ async function persistLeague(full){const database=await seasonReady;return new P
 function storedSeasonResult(full){return {...full,seasonRosterLogos:true,teams:full.teams.map(t=>{const {logo,...team}=t;return team;})};}
 function hydrateSeasonResult(full){if(full?.seasonRosterLogos)full.teams=full.teams.map(t=>({...t,logo:leagueTeam(t.id)?.logo}));return full;}
 // The scoreboard only needs score/clock frames. Full plays load for one watched game.
-function liveSeasonSummary(full){return {teams:full.teams.map(t=>({id:t.id})),score:full.score,seed:full.seed,ot:full.ot,events:full.events.map(e=>({after:{q:e.after.q,time:e.after.time,score:e.after.score}}))};}
+function liveSeasonSummary(full){return {config:{neutral:!!full.config?.neutral},teams:full.teams.map(t=>({id:t.id})),score:full.score,seed:full.seed,ot:full.ot,events:full.events.map(e=>({after:{q:e.after.q,time:e.after.time,score:e.after.score}}))};}
 async function restoreLeagueLive(){leagueLive.clear();for(const f of league.games.filter(g=>g.status==='live')){const full=await seasonDB('results','get',`${league.id}:${f.id}`);if(full)leagueLive.set(f.id,liveSeasonSummary(full));await seasonYield();}}
 async function prepareSeasonLogos(){for(const t of league?.teams||[]){if(!t.logo||displayLogoCache.has(t.logo))continue;try{const im=await loadImage(t.logo),c=document.createElement('canvas'),scale=Math.min(1,128/Math.max(im.width,im.height));c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));c.getContext('2d').drawImage(im,0,0,c.width,c.height);displayLogoCache.set(t.logo,c.toDataURL('image/png'));c.width=c.height=1;}catch{displayLogoCache.set(t.logo,t.logo);}await seasonYield();}}
 const seasonYield=()=>new Promise(r=>setTimeout(r,0));
