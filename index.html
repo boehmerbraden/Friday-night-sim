@@ -52,7 +52,7 @@ dialog.season-team-picker{position:fixed;inset:0;width:100%;max-width:none;heigh
 <div class="shell"><header class="topbar"><div class="brand"><div class="mark">F</div>FRIDAY<span>NIGHT</span></div><nav class="topnav" aria-label="Main navigation"><button data-view="gamecast" class="active">Gamecast</button><button data-view="setup">Matchup</button><button data-view="teams">Teams</button><button data-view="season">Season Mode</button><button data-view="history">Saved games</button><button data-view="rules">How it works</button></nav><span class="pill"><span class="dot"></span>HIGH SCHOOL FOOTBALL</span></header>
 <div class="state-bar"><div><label for="active-state">SELECT YOUR STATE</label><select id="active-state" aria-label="Select your state"></select></div><p id="state-context">Choose a state, then select its teams.</p></div>
 <main>
-<section id="save-manager" class="panel" style="margin:16px 0 24px;padding:18px"><div class="eyebrow">YOUR FOOTBALL UNIVERSE · LOCAL SAVE FILES</div><h2 style="margin:8px 0">SAVE / LOAD GAME</h2><p class="help">Download a complete save file to your device. Load it anytime, even on another device. No cloud account required.</p><div class="actions"><button id="save-download" type="button" class="primary">↓ SAVE GAME FILE</button><button id="save-load" type="button">↑ LOAD GAME FILE</button><button id="save-new" type="button" class="ghost">START FILE-ONLY GAME</button><input id="save-file" type="file" accept=".json,application/json" style="display:none"></div><p class="help" id="save-status">Checking save mode…</p><p class="help" id="save-message" role="status" aria-live="polite"></p><p class="help">After playing, save again. On iPhone, keep the downloaded file in Files. Safari cannot automatically update that file.</p></section><section id="season" class="view hidden"></section>
+<section id="save-manager" class="panel" style="margin:16px 0 24px;padding:18px"><div class="eyebrow">YOUR FOOTBALL UNIVERSE · LOCAL SAVE FILES</div><h2 style="margin:8px 0">SAVE / LOAD GAME</h2><p class="help">Download a complete save file to your device. Load it anytime, even on another device. No cloud account required.</p><div class="actions"><button id="save-download" type="button" class="primary">↓ SAVE GAME FILE</button><button id="save-load" type="button">↑ LOAD GAME FILE</button><button id="save-new" type="button" class="ghost">START FILE-ONLY GAME</button><button id="save-recover" type="button" class="ghost">RECOVER OLD TEAMS</button><input id="save-file" type="file" accept=".json,application/json" style="display:none"></div><p class="help" id="save-status">Checking save mode…</p><p class="help" id="save-message" role="status" aria-live="polite"></p><p class="help">After playing, save again. On iPhone, keep the downloaded file in Files. Safari cannot automatically update that file.</p></section><section id="season" class="view hidden"></section>
 <section id="gamecast" class="view"><div id="season-game-ribbon" class="season-ribbon hidden"></div><div class="hero"><div><div class="eyebrow">THE LIGHTS ARE ON. THE STAGE IS YOURS.</div><h1>YOUR TEAMS.<br><em>FRIDAY NIGHT LIGHTS.</em></h1><p>Build the matchup. Watch every snap. Make your own history.</p></div><div class="meta"><strong id="venue-meta">12-MINUTE QUARTERS · CLEAR SKIES</strong><br>Seeded simulation · Every play matters</div></div>
 <div class="layout"><div class="panel"><div class="panel-head"><h3>GAME CENTER</h3><span id="game-status" class="pill">READY FOR KICKOFF</span></div><div id="scoreboard" class="scoreboard"></div><div class="situation"><span id="possession" class="possession">SET YOUR MATCHUP</span><span id="down-distance">1st & 10</span><span id="ball-location">BALL ON OWN 20</span></div><div class="field-wrap"><div class="field" id="field" aria-label="Football field"><div id="end-left" class="endzone"></div><div id="end-right" class="endzone right"></div><div class="hashes"></div><div id="yard-lines"></div><div id="scrimmage" class="marker"></div><div id="first-down" class="marker first"></div><div id="ball" class="ball"></div><div class="field-label">FRIDAY NIGHT • UNDER THE LIGHTS</div><div class="field-flash" id="flash"></div></div><div class="field-key"><span>— Line of scrimmage &nbsp; <b>— First down</b></span><span id="direction">POSSESSION →</span></div></div><div class="controls"><button id="start" class="primary">▶ SIMULATE GAME</button><button id="edit-matchup" class="ghost">Edit matchup</button><button id="finish" class="ghost" disabled>Skip to final ↗</button><div class="speed" aria-label="Simulation speed"><button data-speed="1">1×</button><button data-speed="5">5×</button><button data-speed="10" class="active">10×</button><button data-speed="25">25×</button><button data-speed="instant">INSTANT</button></div></div></div>
 <aside class="side-stack"><div class="panel"><div class="panel-head"><h3>ON THE FIELD</h3><small>LAST PLAY</small></div><div id="latest" class="latest"><div class="type">A new rivalry starts here.</div><p>Use the sample teams or bring your own school names, ratings, colors, and logos.</p><small>100% SIMULATED. NOTHING SCRIPTED.</small></div></div><div class="panel"><div class="panel-head"><h3>TEAM COMPARISON</h3><small>LIVE</small></div><div id="live-stats" class="stat-lines"></div></div></aside></div>
@@ -478,6 +478,38 @@ const FridaySave=(()=>{
   if(persisted){try{localStorage.setItem('friday-night-state',parsed.state||'AL');}catch{}location.reload();}
   else if(typeof window.FridayNightReloadFile==='function')await window.FridayNightReloadFile(parsed.state||'AL');
  }
+ async function recoverTeams(){
+  const button=document.getElementById('save-recover');
+  button.disabled=true;
+  announce('Trying a fresh read of saved teams without modifying Safari data…');
+  let database;
+  try{
+   database=await new Promise((resolve,reject)=>{
+    const req=indexedDB.open('friday-night-v1');
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||Error('Could not open the team database'));
+    req.onblocked=()=>reject(Error('Database is blocked by another tab'));
+   });
+   const teams=await new Promise((resolve,reject)=>{
+    let tx;
+    try{tx=database.transaction('teams','readonly');}
+    catch(err){reject(err);return;}
+    const req=tx.objectStore('teams').getAll();
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+    tx.onabort=()=>reject(tx.error||Error('Team read aborted'));
+   });
+   if(!teams.length)throw Error('The database opened, but it has no saved teams.');
+   const data=Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,[]]))]));
+   data.main.teams=teams;
+   const payload={kind:schema,version,createdAt:new Date().toISOString(),state:typeof selectedState==='string'?selectedState:'AL',recovery:'teams-only',data};
+   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob);
+   const link=document.createElement('a');link.href=url;link.download='Friday-Night-RECOVERED-TEAMS-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+   announce('Found '+teams.length+' teams! A teams-only save file was created. Save it to Files before making changes.');
+  }catch(err){announce('RECOVERY FAILED: '+(err?.message||err)+'. No records were deleted or changed.');}
+  finally{try{database?.close();}catch{}button.disabled=false;}
+ }
  async function newSession(){
   if(!confirm('Start a NEW blank file-only universe? Your old Safari data will NOT be deleted, but it will not appear in this new session. Download a save file before leaving this page.'))return;
   const empty=Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,[]]))]));
@@ -489,6 +521,7 @@ const FridaySave=(()=>{
   const input=document.getElementById('save-file');
   document.getElementById('save-download')?.addEventListener('click',downloadSave);
   document.getElementById('save-new')?.addEventListener('click',newSession);
+  document.getElementById('save-recover')?.addEventListener('click',recoverTeams);
   document.getElementById('save-load')?.addEventListener('click',()=>input?.click());
   input?.addEventListener('change',async()=>{const file=input.files?.[0];input.value='';await loadFile(file);});
   setStatus();
