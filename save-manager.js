@@ -100,9 +100,17 @@ const FridaySave=(()=>{
   if(persisted){try{localStorage.setItem('friday-night-state',parsed.state||'AL');}catch{}location.reload();}
   else if(typeof window.FridayNightReloadFile==='function')await window.FridayNightReloadFile(parsed.state||'AL');
  }
+ async function newSession(){
+  if(!confirm('Start a NEW blank file-only universe? Your old Safari data will NOT be deleted, but it will not appear in this new session. Download a save file before leaving this page.'))return;
+  const empty=Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,[]]))]));
+  memory=virtual(empty);setStatus();
+  if(typeof window.FridayNightReloadFile==='function')await window.FridayNightReloadFile('AL');
+  announce('Blank file-only game ready. Safari data untouched. Save to Files when you finish playing.');
+ }
  function init(){
   const input=document.getElementById('save-file');
   document.getElementById('save-download')?.addEventListener('click',downloadSave);
+  document.getElementById('save-new')?.addEventListener('click',newSession);
   document.getElementById('save-load')?.addEventListener('click',()=>input?.click());
   input?.addEventListener('change',async()=>{const file=input.files?.[0];input.value='';await loadFile(file);});
   setStatus();
