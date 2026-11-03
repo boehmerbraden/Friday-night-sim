@@ -83,9 +83,11 @@ const FridaySave=(()=>{
   }catch(err){announce('LOAD FAILED: '+err.message);return;}
   const backup=parsed.data;
   let persisted=false;
+  let browserHealthy=false;
+  try{await snapshot();browserHealthy=true;}catch{}
   try{
-   // Import is staged in memory first; the file itself remains available for recovery.
-   const next=virtual(backup);
+   // Never overwrite an inaccessible Safari database: it may contain recoverable history.
+   if(!browserHealthy)throw Error('Existing Safari database is inaccessible; preserved without changes.');
    await writeDB('main',backup);
    await writeDB('seasons',backup);
    memory=null;
