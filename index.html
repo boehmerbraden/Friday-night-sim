@@ -52,7 +52,7 @@ dialog.season-team-picker{position:fixed;inset:0;width:100%;max-width:none;heigh
 <div class="shell"><header class="topbar"><div class="brand"><div class="mark">F</div>FRIDAY<span>NIGHT</span></div><nav class="topnav" aria-label="Main navigation"><button data-view="gamecast" class="active">Gamecast</button><button data-view="setup">Matchup</button><button data-view="teams">Teams</button><button data-view="season">Season Mode</button><button data-view="history">Saved games</button><button data-view="rules">How it works</button></nav><span class="pill"><span class="dot"></span>HIGH SCHOOL FOOTBALL</span></header>
 <div class="state-bar"><div><label for="active-state">SELECT YOUR STATE</label><select id="active-state" aria-label="Select your state"></select></div><p id="state-context">Choose a state, then select its teams.</p></div>
 <main>
-<section id="season" class="view hidden"></section>
+<section id="save-manager" class="panel" style="margin:16px 0 24px;padding:18px"><div class="eyebrow">YOUR FOOTBALL UNIVERSE · LOCAL SAVE FILES</div><h2 style="margin:8px 0">SAVE / LOAD GAME</h2><p class="help">Download a complete save file to your device. Load it anytime, even on another device. No cloud account required.</p><div class="actions"><button id="save-download" type="button" class="primary">↓ SAVE GAME FILE</button><button id="save-load" type="button">↑ LOAD GAME FILE</button><input id="save-file" type="file" accept=".json,application/json" style="display:none"></div><p class="help" id="save-status">Checking save mode…</p><p class="help" id="save-message" role="status" aria-live="polite"></p><p class="help">After playing, save again. On iPhone, keep the downloaded file in Files. Safari cannot automatically update that file.</p></section><section id="season" class="view hidden"></section>
 <section id="gamecast" class="view"><div id="season-game-ribbon" class="season-ribbon hidden"></div><div class="hero"><div><div class="eyebrow">THE LIGHTS ARE ON. THE STAGE IS YOURS.</div><h1>YOUR TEAMS.<br><em>FRIDAY NIGHT LIGHTS.</em></h1><p>Build the matchup. Watch every snap. Make your own history.</p></div><div class="meta"><strong id="venue-meta">12-MINUTE QUARTERS · CLEAR SKIES</strong><br>Seeded simulation · Every play matters</div></div>
 <div class="layout"><div class="panel"><div class="panel-head"><h3>GAME CENTER</h3><span id="game-status" class="pill">READY FOR KICKOFF</span></div><div id="scoreboard" class="scoreboard"></div><div class="situation"><span id="possession" class="possession">SET YOUR MATCHUP</span><span id="down-distance">1st & 10</span><span id="ball-location">BALL ON OWN 20</span></div><div class="field-wrap"><div class="field" id="field" aria-label="Football field"><div id="end-left" class="endzone"></div><div id="end-right" class="endzone right"></div><div class="hashes"></div><div id="yard-lines"></div><div id="scrimmage" class="marker"></div><div id="first-down" class="marker first"></div><div id="ball" class="ball"></div><div class="field-label">FRIDAY NIGHT • UNDER THE LIGHTS</div><div class="field-flash" id="flash"></div></div><div class="field-key"><span>— Line of scrimmage &nbsp; <b>— First down</b></span><span id="direction">POSSESSION →</span></div></div><div class="controls"><button id="start" class="primary">▶ SIMULATE GAME</button><button id="edit-matchup" class="ghost">Edit matchup</button><button id="finish" class="ghost" disabled>Skip to final ↗</button><div class="speed" aria-label="Simulation speed"><button data-speed="1">1×</button><button data-speed="5">5×</button><button data-speed="10" class="active">10×</button><button data-speed="25">25×</button><button data-speed="instant">INSTANT</button></div></div></div>
 <aside class="side-stack"><div class="panel"><div class="panel-head"><h3>ON THE FIELD</h3><small>LAST PLAY</small></div><div id="latest" class="latest"><div class="type">A new rivalry starts here.</div><p>Use the sample teams or bring your own school names, ratings, colors, and logos.</p><small>100% SIMULATED. NOTHING SCRIPTED.</small></div></div><div class="panel"><div class="panel-head"><h3>TEAM COMPARISON</h3><small>LIVE</small></div><div id="live-stats" class="stat-lines"></div></div></aside></div>
@@ -376,6 +376,117 @@ function historyRecords(input,scope='both'){
  return out;
 }
 
+/* Local save cartridge: no account, network, or cloud dependency. */
+const FridaySave=(()=>{
+ const schema='friday-night-cartridge',version=1;
+ const tables={main:['teams','games','graphics'],seasons:['seasons','results','templates','prefs']};
+ let memory=null;
+ const clone=x=>structuredClone(x);
+ function action(database,store,verb,value){
+  if(!memory)return null;
+  const map=memory[database]?.[store];
+  if(!map)throw Error('Unknown saved store');
+  if(verb==='getAll')return Promise.resolve([...map.values()].map(clone));
+  if(verb==='get')return Promise.resolve(clone(map.get(value)));
+  if(verb==='put'){map.set(value.id,clone(value));return Promise.resolve(value.id);}
+  if(verb==='delete'){map.delete(value);return Promise.resolve();}
+  throw Error('Unsupported storage operation');
+ }
+ const status=()=>memory?'FILE SESSION — download a save after playing':'BROWSER STORAGE — download regular backups';
+ function setStatus(){const el=document.getElementById('save-status');if(el)el.textContent=status();}
+ async function snapshot(){
+  const data={};
+  for(const [name,stores] of Object.entries(tables)){
+   data[name]={};
+   for(const store of stores){
+    try{data[name][store]=await (name==='main'?db(store,'getAll'):seasonDB(store,'getAll'));}
+    catch(err){throw Error('Could not read '+name+'/'+store+'. Your existing records may still be in Safari. No incomplete backup was created. '+(err?.message||''));}
+   }
+  }
+  return data;
+ }
+ function check(file){
+  if(!file||file.kind!==schema||file.version!==version||!file.data||typeof file.data!=='object')throw Error('Not a compatible Friday Night full-save file.');
+  let count=0;
+  for(const [name,stores] of Object.entries(tables))for(const store of stores){
+   const list=file.data[name]?.[store];
+   if(!Array.isArray(list)||list.length>100000)throw Error('Missing or invalid '+name+'/'+store+' section.');
+   const ids=new Set();
+   for(const entry of list){
+    if(!entry||typeof entry!=='object'||typeof entry.id!=='string'||!entry.id||ids.has(entry.id))throw Error('Invalid or duplicate saved ID in '+store+'.');
+    ids.add(entry.id);
+   }
+   count+=list.length;
+  }
+  for(const s of file.data.seasons.seasons)if(!Array.isArray(s.teams)||!Array.isArray(s.games))throw Error('Invalid season found in save.');
+  for(const t of file.data.main.teams)if(typeof t.name!=='string')throw Error('Invalid team found in save.');
+  return count;
+ }
+ function virtual(data){return Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,new Map(data[name][store].map(row=>[row.id,clone(row)]))]))]));}
+ async function writeDB(name,data){
+  const dbName=name==='main'?'friday-night-v1':'friday-night-seasons';
+  const database=await new Promise((resolve,reject)=>{const r=indexedDB.open(dbName,name==='main'?undefined:1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Database blocked by another tab'));});
+  try{
+   await new Promise((resolve,reject)=>{
+    const stores=tables[name],tx=database.transaction(stores,'readwrite');
+    for(const store of stores){
+     const target=tx.objectStore(store);target.clear();
+     for(const entry of data[name][store])target.put(entry);
+    }
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Save import aborted'));
+   });
+  }finally{database.close();}
+ }
+ async function downloadSave(){
+  const button=document.getElementById('save-download');
+  button.disabled=true;
+  try{
+   const data=await snapshot();
+   const payload={kind:schema,version,createdAt:new Date().toISOString(),state:typeof selectedState==='string'?selectedState:'AL',data};
+   const raw=JSON.stringify(payload);
+   const blob=new Blob([raw],{type:'application/json'}),url=URL.createObjectURL(blob);
+   const a=document.createElement('a');a.href=url;a.download='Friday-Night-Save-'+new Date().toISOString().slice(0,10)+'.json';
+   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   announce('Save file created. In Safari choose Save to Files and keep it somewhere safe.');
+  }catch(err){announce('SAVE FAILED: '+err.message);}
+  finally{button.disabled=false;setStatus();}
+ }
+ function announce(message){const e=document.getElementById('save-message');if(e)e.textContent=message;if(typeof toast==='function')toast(message);}
+ async function loadFile(file){
+  if(!file)return;
+  if(file.size>120*1024*1024){announce('Save file too large.');return;}
+  let parsed;
+  try{parsed=JSON.parse(await file.text());const total=check(parsed);
+   if(!confirm('Load this saved football universe ('+total+' records)? Existing browser data will be replaced only if storage works. Save a backup first if possible.'))return;
+  }catch(err){announce('LOAD FAILED: '+err.message);return;}
+  const backup=parsed.data;
+  let persisted=false;
+  try{
+   // Import is staged in memory first; the file itself remains available for recovery.
+   const next=virtual(backup);
+   await writeDB('main',backup);
+   await writeDB('seasons',backup);
+   memory=null;
+   persisted=true;
+  }catch(err){
+   memory=virtual(backup);
+   announce('Safari storage is unavailable. Loaded into this tab only. Download Save before closing! ('+(err?.message||'Storage error')+')');
+  }
+  setStatus();
+  if(persisted){try{localStorage.setItem('friday-night-state',parsed.state||'AL');}catch{}location.reload();}
+  else if(typeof window.FridayNightReloadFile==='function')await window.FridayNightReloadFile(parsed.state||'AL');
+ }
+ function init(){
+  const input=document.getElementById('save-file');
+  document.getElementById('save-download')?.addEventListener('click',downloadSave);
+  document.getElementById('save-load')?.addEventListener('click',()=>input?.click());
+  input?.addEventListener('change',async()=>{const file=input.files?.[0];input.value='';await loadFile(file);});
+  setStatus();
+ }
+ return {action,status,init,downloadSave};
+})();
+window.FridayNightSave=FridaySave;
+
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let selectedState='AL',restoreSeasonView=false;try{restoreSeasonView=localStorage.getItem('friday-night-view')==='season';const remembered=localStorage.getItem('friday-night-state');if(validState(remembered))selectedState=remembered;}catch{}
 const stateOptions=selected=>US_STATES.map(([id,name])=>`<option value="${id}" ${id===selected?'selected':''}>${name}</option>`).join('');
@@ -385,7 +496,7 @@ const demo=[{id:'ashford',name:'Ashford',mascot:'Ironwolves',primary:'#de4854',s
 let matchup=structuredClone(demo),savedTeams=[],history=[],game=null,cursor=0,running=false,speed=10,timer=null,graphic=null,currentView='gamecast',graphicRequest=0,historyTeamId='',historyPage=0;
 const dbReady=new Promise((resolve,reject)=>{const req=indexedDB.open('friday-night-v1');req.onupgradeneeded=e=>{if(e.oldVersion===0){const teams=req.result.createObjectStore('teams',{keyPath:'id'});for(const t of demo)teams.put(t);req.result.createObjectStore('games',{keyPath:'id'});req.result.createObjectStore('graphics',{keyPath:'id'});}};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
 async function migrateTeamStates(){const database=await dbReady;return new Promise((resolve,reject)=>{const tx=database.transaction('teams','readwrite'),request=tx.objectStore('teams').openCursor();request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;if(!validState(cursor.value.state))cursor.update({...cursor.value,state:'AL'});cursor.continue();};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-async function db(store,action,value){const database=await dbReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='getAll'?'readonly':'readwrite');const req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);});}
+async function db(store,action,value){if(FridaySave.status().startsWith('FILE SESSION'))return FridaySave.action('main',store,action,value);const database=await dbReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='getAll'?'readonly':'readwrite');const req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);});}
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.add('hidden'),4500);}
 const displayLogoCache=new Map();
 function logo(t){return t.logo?`<img class="logo" src="${esc(displayLogoCache.get(t.logo)||t.logo)}" alt="${esc(t.name)} logo">`:`<div class="crest" style="--team:${t.primary}" aria-label="${esc(t.name)} initials">${esc(t.name.split(' ').map(s=>s[0]).join('').slice(0,3)||'+')}</div>`;}
@@ -536,8 +647,8 @@ document.addEventListener('click',e=>{if(e.target.closest('[data-season-batch]')
 // Metadata stays small. Full play logs are loaded only for live games or an opened gamecast.
 let league=null,leagueArchive=[],leagueTemplates=[],seasonDraft=null,seasonTab='scoreboard',leagueSpeed=10,leagueBusy=false,leaguePaused=false,leagueInstant=false,leagueLive=new Map(),leagueWatch=null,leaguePreviewMatchup=null,leagueFilter='',leagueDivision='',leagueTier='',leagueSort='rank',leagueLayout='grid',leagueBoardPhase='auto',leagueBoardRound=0,leaguePage=0,seasonSetupPage=0,leagueMessage='',leagueProgress='',careerTeam='',favorites=new Set(),excludedCareerSeasons=new Set(),seedDraft=null;
 const seasonReady=new Promise((resolve,reject)=>{const req=indexedDB.open('friday-night-seasons',1);req.onupgradeneeded=()=>{for(const name of ['seasons','results','templates','prefs'])req.result.createObjectStore(name,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
-async function seasonDB(store,action,value){const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='get'||action==='getAll'?'readonly':'readwrite'),req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage transaction aborted.'));});}
-async function persistLeague(full){const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(full?['seasons','results']:['seasons'],'readwrite');tx.objectStore('seasons').put(league);if(full)tx.objectStore('results').put(storedSeasonResult(full));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage is full.'));});}
+async function seasonDB(store,action,value){if(FridaySave.status().startsWith('FILE SESSION'))return FridaySave.action('seasons',store,action,value);const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='get'||action==='getAll'?'readonly':'readwrite'),req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage transaction aborted.'));});}
+async function persistLeague(full){if(FridaySave.status().startsWith('FILE SESSION')){await FridaySave.action('seasons','seasons','put',league);if(full)await FridaySave.action('seasons','results','put',storedSeasonResult(full));return;}const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(full?['seasons','results']:['seasons'],'readwrite');tx.objectStore('seasons').put(league);if(full)tx.objectStore('results').put(storedSeasonResult(full));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage is full.'));});}
 // Logos live in the immutable season roster, not in every game's stored result.
 function storedSeasonResult(full){return {...full,seasonRosterLogos:true,teams:full.teams.map(t=>{const {logo,...team}=t;return team;})};}
 function hydrateSeasonResult(full){if(full?.seasonRosterLogos)full.teams=full.teams.map(t=>({...t,logo:leagueTeam(t.id)?.logo}));return full;}
@@ -682,11 +793,24 @@ $('season').addEventListener('click',async e=>{const tab=e.target.closest('[data
  }catch(err){leagueMessage=err.message;toast(err.message);renderSeason();}});
 try{excludedCareerSeasons=new Set((await seasonDB('prefs','get','career-reset'))?.value||[]);leagueArchive=await seasonDB('seasons','getAll');leagueTemplates=await seasonDB('templates','getAll');const pref=await seasonDB('prefs','get','active');league=leagueArchive.find(s=>s.id===pref?.value&&leagueState(s)===selectedState)||leagueArchive.filter(s=>leagueState(s)===selectedState).sort((a,b)=>b.created.localeCompare(a.created))[0]||null;favorites=new Set((await seasonDB('prefs','get','favorites'))?.value||[]);if(league){await prepareSeasonLogos();await restoreLeagueLive();if(leagueLive.size)leagueMessage='Live week restored. Click Sim Current Week (or Sim Playoff Round) to resume.';}}catch(e){seasonRecordsUnavailable=true;toast('Season storage unavailable: '+e.message);}
 try{if(restoreSeasonView){seasonTab=league?(league.status==='seeding'?'bracket':'scoreboard'):'setup';view('season');}}catch{}
+window.FridayNightReloadFile=async function(state){
+ clearTimeout(timer);running=false;detachSeasonWatch();game=null;cursor=0;selectedState=validState(state)?state:'AL';teamEditor=null;
+ savedTeams=await db('teams','getAll');history=await db('games','getAll');
+ const all=stateTeams();matchup=[all[0]?structuredClone(all[0]):blankTeam(),all[1]?structuredClone(all[1]):blankTeam()];
+ leagueArchive=await seasonDB('seasons','getAll');leagueTemplates=await seasonDB('templates','getAll');
+ excludedCareerSeasons=new Set((await seasonDB('prefs','get','career-reset'))?.value||[]);
+ favorites=new Set((await seasonDB('prefs','get','favorites'))?.value||[]);
+ const pref=await seasonDB('prefs','get','active');league=leagueArchive.find(s=>s.id===pref?.value&&leagueState(s)===selectedState)||leagueArchive.filter(s=>leagueState(s)===selectedState).sort((a,b)=>(b.created||'').localeCompare(a.created||''))[0]||null;
+ seasonDraft=null;seedDraft=null;careerTeam='';leagueLive.clear();seasonTab=league?'scoreboard':'setup';leagueMessage='Loaded file session. Download Save after your next changes.';
+ renderStateSelector();render();view('season');FridaySave.initStatus?.();
+};
 window.FridayNightSeason={snapshot:()=>league?structuredClone(league):null,archive:()=>structuredClone(leagueArchive),careers:()=>currentSeasonCareers(),busy:()=>leagueBusy,watching:()=>!!leagueWatch};
 $('open-team-careers').onclick=()=>{seasonTab='career';view('season');};
 
 $('active-state').onchange=async e=>{const next=e.target.value;if(next===selectedState||!validState(next))return;if(leagueBusy){e.target.value=selectedState;toast('Finish the running league batch before switching states.');return;}if((running||(currentView==='teams'&&teamEditor?.some(t=>t.name))||(seasonTab==='setup'&&seasonDraft?.teams.length))&&!confirm('Switch states? Unsaved team edits and league setup will be cleared. Saved teams, seasons, and records are kept.')){e.target.value=selectedState;return;}
  clearTimeout(timer);running=false;detachSeasonWatch();game=null;cursor=0;selectedState=next;teamEditor=null;try{localStorage.setItem('friday-night-state',next);}catch{}savedTeams=await db('teams','getAll');const teams=stateTeams();matchup=[teams[0]?structuredClone(teams[0]):blankTeam(),teams[1]?structuredClone(teams[1]):blankTeam()];historyTeamId='';historyPage=0;seasonDraft=null;seedDraft=null;careerTeam='';leagueFilter='';leagueDivision='';leagueTier='';leagueBoardPhase='auto';leagueBoardRound=0;leaguePage=0;leagueLive.clear();leagueArchive=await seasonDB('seasons','getAll');league=leagueArchive.filter(s=>leagueState(s)===selectedState).sort((a,b)=>b.created.localeCompare(a.created))[0]||null;if(league){await prepareSeasonLogos();await restoreLeagueLive();}seasonTab=league?'scoreboard':'setup';leagueMessage='';$('latest').innerHTML='<div class="type">Ready for kickoff.</div><p>Select teams from your state to build a matchup.</p>';$('recent-feed').innerHTML='<div class="empty">Kickoff is next.</div>';renderStateSelector();render();view(currentView==='season'?'season':currentView==='history'?'history':currentView==='teams'?'teams':'setup');};
+
+FridaySave.init();
 
 let statsTab='season',statsSeason='',statsScope='regular',statsTeam='',statsOpponent='',statsCompare='all',statsSort='pct',statsAscending=false,statsPage=0,statsSearch='',statsDivision='',statsTier='',statsRecordScope='both',statsArchiveId='',statsMeetingsPage=0;
 const statsScopeName=s=>s==='regular'?'Regular season':s==='playoff'?'Playoffs':'Regular season + playoffs';
