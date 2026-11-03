@@ -2,7 +2,7 @@ import {seasonHash,seasonDefaults,generateSchedule,validateSchedule,createSeason
 // Metadata stays small. Full play logs are loaded only for live games or an opened gamecast.
 let league=null,leagueArchive=[],leagueTemplates=[],seasonDraft=null,seasonTab='scoreboard',leagueSpeed=10,leagueBusy=false,leaguePaused=false,leagueInstant=false,leagueLive=new Map(),leagueWatch=null,leaguePreviewMatchup=null,leagueFilter='',leagueDivision='',leagueTier='',leagueSort='rank',leagueLayout='grid',leagueBoardPhase='auto',leagueBoardRound=0,leaguePage=0,seasonSetupPage=0,leagueMessage='',leagueProgress='',careerTeam='',favorites=new Set(),excludedCareerSeasons=new Set(),seedDraft=null;
 const seasonReady=new Promise((resolve,reject)=>{const req=indexedDB.open('friday-night-seasons',1);req.onupgradeneeded=()=>{for(const name of ['seasons','results','templates','prefs'])req.result.createObjectStore(name,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
-async function seasonDB(store,action,value){const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='get'||action==='getAll'?'readonly':'readwrite'),req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage transaction aborted.'));});}
+async function seasonDB(store,action,value){if(FridaySave.status().startsWith('FILE SESSION'))return FridaySave.action('seasons',store,action,value);const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(store,action==='get'||action==='getAll'?'readonly':'readwrite'),req=action==='getAll'?tx.objectStore(store).getAll():tx.objectStore(store)[action](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage transaction aborted.'));});}
 async function persistLeague(full){const database=await seasonReady;return new Promise((resolve,reject)=>{const tx=database.transaction(full?['seasons','results']:['seasons'],'readwrite');tx.objectStore('seasons').put(league);if(full)tx.objectStore('results').put(storedSeasonResult(full));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage is full.'));});}
 // Logos live in the immutable season roster, not in every game's stored result.
 function storedSeasonResult(full){return {...full,seasonRosterLogos:true,teams:full.teams.map(t=>{const {logo,...team}=t;return team;})};}
@@ -148,6 +148,17 @@ $('season').addEventListener('click',async e=>{const tab=e.target.closest('[data
  }catch(err){leagueMessage=err.message;toast(err.message);renderSeason();}});
 try{excludedCareerSeasons=new Set((await seasonDB('prefs','get','career-reset'))?.value||[]);leagueArchive=await seasonDB('seasons','getAll');leagueTemplates=await seasonDB('templates','getAll');const pref=await seasonDB('prefs','get','active');league=leagueArchive.find(s=>s.id===pref?.value&&leagueState(s)===selectedState)||leagueArchive.filter(s=>leagueState(s)===selectedState).sort((a,b)=>b.created.localeCompare(a.created))[0]||null;favorites=new Set((await seasonDB('prefs','get','favorites'))?.value||[]);if(league){await prepareSeasonLogos();await restoreLeagueLive();if(leagueLive.size)leagueMessage='Live week restored. Click Sim Current Week (or Sim Playoff Round) to resume.';}}catch(e){seasonRecordsUnavailable=true;toast('Season storage unavailable: '+e.message);}
 try{if(restoreSeasonView){seasonTab=league?(league.status==='seeding'?'bracket':'scoreboard'):'setup';view('season');}}catch{}
+window.FridayNightReloadFile=async function(state){
+ clearTimeout(timer);running=false;detachSeasonWatch();game=null;cursor=0;selectedState=validState(state)?state:'AL';teamEditor=null;
+ savedTeams=await db('teams','getAll');history=await db('games','getAll');
+ const all=stateTeams();matchup=[all[0]?structuredClone(all[0]):blankTeam(),all[1]?structuredClone(all[1]):blankTeam()];
+ leagueArchive=await seasonDB('seasons','getAll');leagueTemplates=await seasonDB('templates','getAll');
+ excludedCareerSeasons=new Set((await seasonDB('prefs','get','career-reset'))?.value||[]);
+ favorites=new Set((await seasonDB('prefs','get','favorites'))?.value||[]);
+ const pref=await seasonDB('prefs','get','active');league=leagueArchive.find(s=>s.id===pref?.value&&leagueState(s)===selectedState)||leagueArchive.filter(s=>leagueState(s)===selectedState).sort((a,b)=>(b.created||'').localeCompare(a.created||''))[0]||null;
+ seasonDraft=null;seedDraft=null;careerTeam='';leagueLive.clear();seasonTab=league?'scoreboard':'setup';leagueMessage='Loaded file session. Download Save after your next changes.';
+ renderStateSelector();render();view('season');FridaySave.initStatus?.();
+};
 window.FridayNightSeason={snapshot:()=>league?structuredClone(league):null,archive:()=>structuredClone(leagueArchive),careers:()=>currentSeasonCareers(),busy:()=>leagueBusy,watching:()=>!!leagueWatch};
 $('open-team-careers').onclick=()=>{seasonTab='career';view('season');};
 
