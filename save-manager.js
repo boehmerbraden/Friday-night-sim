@@ -100,6 +100,38 @@ const FridaySave=(()=>{
   if(persisted){try{localStorage.setItem('friday-night-state',parsed.state||'AL');}catch{}location.reload();}
   else if(typeof window.FridayNightReloadFile==='function')await window.FridayNightReloadFile(parsed.state||'AL');
  }
+ async function recoverTeams(){
+  const button=document.getElementById('save-recover');
+  button.disabled=true;
+  announce('Trying a fresh read of saved teams without modifying Safari data…');
+  let database;
+  try{
+   database=await new Promise((resolve,reject)=>{
+    const req=indexedDB.open('friday-night-v1');
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||Error('Could not open the team database'));
+    req.onblocked=()=>reject(Error('Database is blocked by another tab'));
+   });
+   const teams=await new Promise((resolve,reject)=>{
+    let tx;
+    try{tx=database.transaction('teams','readonly');}
+    catch(err){reject(err);return;}
+    const req=tx.objectStore('teams').getAll();
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+    tx.onabort=()=>reject(tx.error||Error('Team read aborted'));
+   });
+   if(!teams.length)throw Error('The database opened, but it has no saved teams.');
+   const data=Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,[]]))]));
+   data.main.teams=teams;
+   const payload={kind:schema,version,createdAt:new Date().toISOString(),state:typeof selectedState==='string'?selectedState:'AL',recovery:'teams-only',data};
+   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob);
+   const link=document.createElement('a');link.href=url;link.download='Friday-Night-RECOVERED-TEAMS-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+   announce('Found '+teams.length+' teams! A teams-only save file was created. Save it to Files before making changes.');
+  }catch(err){announce('RECOVERY FAILED: '+(err?.message||err)+'. No records were deleted or changed.');}
+  finally{try{database?.close();}catch{}button.disabled=false;}
+ }
  async function newSession(){
   if(!confirm('Start a NEW blank file-only universe? Your old Safari data will NOT be deleted, but it will not appear in this new session. Download a save file before leaving this page.'))return;
   const empty=Object.fromEntries(Object.entries(tables).map(([name,stores])=>[name,Object.fromEntries(stores.map(store=>[store,[]]))]));
@@ -111,6 +143,7 @@ const FridaySave=(()=>{
   const input=document.getElementById('save-file');
   document.getElementById('save-download')?.addEventListener('click',downloadSave);
   document.getElementById('save-new')?.addEventListener('click',newSession);
+  document.getElementById('save-recover')?.addEventListener('click',recoverTeams);
   document.getElementById('save-load')?.addEventListener('click',()=>input?.click());
   input?.addEventListener('change',async()=>{const file=input.files?.[0];input.value='';await loadFile(file);});
   setStatus();
